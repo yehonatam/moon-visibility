@@ -532,7 +532,14 @@ function downloadExcel() {
   XLSX.writeFile(wb, `ראיית_הירח_${hebYear}.xlsx`);
 }
 
-window.onload = () => calculate();
+// Default to the Hebrew year we are in today (it changes on Rosh Hashana)
+function setCurrentYear() {
+  const t = new Date();
+  const hy = gregorianToHebrew(t.getFullYear(), t.getMonth() + 1, t.getDate()).year;
+  document.getElementById('hebYear').value = hy;
+  document.getElementById('gregYear').value = hy - 3761;
+}
+window.onload = () => { setCurrentYear(); calculate(); };
 </script>
 </body>
 </html>

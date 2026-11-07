@@ -59,6 +59,9 @@
   .btn-light { background: #e8eef7; color: #2c3e6b; }
   .btn-light:hover { background: #d6e1f2; }
   .btn-sm { padding: 6px 12px; font-size: 0.88rem; }
+  .btn-conj { background: #1a1a2e; color: #e8d5b7; border: 1px solid #1a1a2e; }
+  .btn-conj:hover { background: #0f3460; }
+  .step-row { justify-content: center; }
   .custom-loc { display: none; }
   .custom-loc.active { display: flex; flex-wrap: wrap; gap: 12px; }
   .tz-note { font-size: 0.82rem; color: #555; margin-top: 10px; }
@@ -210,7 +213,15 @@
       </div>
     </div>
     <div class="slider-scale"><span>−3 שעות</span><span>זמן שנבחר</span><span>+3 שעות</span></div>
-    <div class="form-row" style="margin-top:12px;gap:8px">
+    <div class="form-row step-row" style="margin-top:12px;gap:8px">
+      <button class="btn btn-light btn-sm" onclick="stepMonth(-1)" title="אותו יום ושעה בחודש הלועזי הקודם">« חודש</button>
+      <button class="btn btn-light btn-sm" onclick="stepDay(-1)" title="אותה שעה ביום הקודם">‹ יום</button>
+      <button class="btn btn-conj btn-sm" onclick="jumpConj(-1)">🌑 למולד הקודם</button>
+      <button class="btn btn-conj btn-sm" onclick="jumpConj(1)">🌑 למולד הבא</button>
+      <button class="btn btn-light btn-sm" onclick="stepDay(1)" title="אותה שעה ביום הבא">יום ›</button>
+      <button class="btn btn-light btn-sm" onclick="stepMonth(1)" title="אותו יום ושעה בחודש הלועזי הבא">חודש »</button>
+    </div>
+    <div class="form-row" style="margin-top:8px;gap:8px">
       <button class="btn btn-light btn-sm" onclick="jumpTo('sunset')">🌇 קפוץ לשקיעה</button>
       <button class="btn btn-light btn-sm" onclick="jumpTo('best')">⭐ קפוץ לזמן המיטבי (Yallop)</button>
       <button class="btn btn-light btn-sm" onclick="jumpTo('moonset')">🌙 קפוץ לשקיעת הירח</button>
@@ -449,6 +460,27 @@ function syncInputs() {
   $('inTime').value = `${p2(L.h)}:${p2(L.mi)}`;
 }
 function rebase() { baseMs = currentMs(); $('slider').value = 0; syncInputs(); render(); }
+function goToMs(ms) { baseMs = ms; $('slider').value = 0; syncInputs(); render(); }
+// Previous / next astronomical conjunction relative to the time shown
+function jumpConj(dir) {
+  const jd = msToJD(currentMs());
+  const C = dir > 0 ? conjunctionsAround(jd + 1/1440) : conjunctionsAround(jd - 1/1440);
+  goToMs(jdToMs(dir > 0 ? C.next : C.prev));
+  setStatus(`${dir > 0 ? 'המולד הבא' : 'המולד הקודם'}: ${fmtDateTime(dir > 0 ? C.next : C.prev)}`, 'info');
+}
+// Same local clock time, ±n days (correct across daylight-saving changes)
+function stepDay(n) {
+  const L = msToLocal(currentMs());
+  goToMs(localToMs(L.y, L.mo, L.d + n, L.h, L.mi));
+}
+// Same local day and time, ±n Gregorian months (day clamped to month length)
+function stepMonth(n) {
+  const L = msToLocal(currentMs());
+  const t = new Date(Date.UTC(L.y, L.mo - 1 + n, 1));
+  const y = t.getUTCFullYear(), mo = t.getUTCMonth() + 1;
+  const dim = new Date(Date.UTC(y, mo, 0)).getUTCDate();
+  goToMs(localToMs(y, mo, Math.min(L.d, dim), L.h, L.mi));
+}
 function jumpTo(what) {
   const D = lastDay; if (!D) return;
   const jd = what === 'sunset' ? D.rs.sunset : what === 'moonset' ? (D.lag && D.lag.moonset) : D.bestJD;
