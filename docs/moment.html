@@ -1,0 +1,761 @@
+<!DOCTYPE html>
+<html dir="rtl" lang="he">
+<head>
+<meta charset="UTF-8">
+<meta name="description" content="חישוב אסטרונומי של ראיית הירח החדש לקביעת ראש חודש">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ראיית הירח - נתונים לרגע נתון</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: 'Segoe UI', Arial, sans-serif;
+    background: #f0f4f8;
+    color: #1a1a2e;
+    direction: rtl;
+    min-height: 100vh;
+  }
+  .header {
+    background: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%);
+    color: #e8d5b7;
+    padding: 28px 32px 20px;
+    text-align: center;
+    box-shadow: 0 4px 16px rgba(0,0,0,0.3);
+    position: relative;
+  }
+  .header h1 { font-size: 2.2rem; letter-spacing: 2px; margin-bottom: 6px; }
+  .header p  { font-size: 0.95rem; opacity: 0.75; }
+  .header .nav { margin-top: 10px; }
+  .header .nav a { color: #e8d5b7; font-size: 0.9rem; opacity: 0.9; }
+  .container { max-width: 1400px; margin: 0 auto; padding: 24px 16px; }
+  .card {
+    background: white;
+    border-radius: 12px;
+    padding: 24px;
+    box-shadow: 0 2px 12px rgba(0,0,0,0.08);
+    margin-bottom: 20px;
+  }
+  .card h2 { font-size: 1.05rem; color: #2c3e6b; margin-bottom: 12px; }
+  .form-row { display: flex; flex-wrap: wrap; gap: 16px; align-items: flex-end; }
+  .form-group { display: flex; flex-direction: column; gap: 5px; }
+  .form-group label { font-size: 0.85rem; color: #555; font-weight: 600; }
+  .form-group input, .form-group select {
+    padding: 9px 12px;
+    border: 1.5px solid #d1d9e0;
+    border-radius: 8px;
+    font-size: 1rem;
+    background: #f8fafc;
+    min-width: 120px;
+    direction: ltr;
+    text-align: center;
+  }
+  .form-group select { direction: rtl; }
+  .form-group input:focus, .form-group select:focus { outline: none; border-color: #4472c4; background: white; }
+  .btn {
+    padding: 10px 20px; border: none; border-radius: 8px; font-size: 1rem;
+    cursor: pointer; font-weight: 600; transition: all 0.2s;
+  }
+  .btn-primary { background: #4472c4; color: white; }
+  .btn-primary:hover { background: #3461b3; transform: translateY(-1px); }
+  .btn-light { background: #e8eef7; color: #2c3e6b; }
+  .btn-light:hover { background: #d6e1f2; }
+  .btn-sm { padding: 6px 12px; font-size: 0.88rem; }
+  .custom-loc { display: none; }
+  .custom-loc.active { display: flex; flex-wrap: wrap; gap: 12px; }
+  .tz-note { font-size: 0.82rem; color: #555; margin-top: 10px; }
+
+  .status { padding: 12px; border-radius: 8px; margin-top: 12px; font-size: 0.95rem; }
+  .status.info    { background: #dbeafe; color: #1e40af; }
+  .status.success { background: #dcfce7; color: #166534; }
+  .status.error   { background: #fee2e2; color: #991b1b; }
+
+  /* Slider */
+  .slider-row { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; direction: ltr; }
+  .slider-row > div { direction: rtl; text-align: right; }
+  .slider-row input[type=range] { flex: 1; min-width: 220px; direction: ltr; accent-color: #4472c4; }
+  .cur-time { font-size: 1.5rem; font-weight: 700; color: #0f3460; direction: ltr; unicode-bidi: isolate; }
+  .cur-sub { color: #666; font-size: 0.88rem; }
+  .slider-scale { display: flex; justify-content: space-between; direction: ltr; font-size: 0.75rem; color: #888; margin-top: 2px; }
+
+  /* Verdict */
+  .verdict { display: flex; flex-wrap: wrap; gap: 12px; }
+  .pill { padding: 10px 16px; border-radius: 10px; font-weight: 700; font-size: 0.98rem; }
+  .vis-yes  { background: #c6efce; color: #1e5c2e; }
+  .vis-maybe{ background: #ffeb9c; color: #7d5a00; }
+  .vis-no   { background: #ffc7ce; color: #9c1a28; }
+  .pill small { font-weight: 500; opacity: 0.85; }
+
+  /* Sky diagram */
+  .sky-wrap { width: 100%; overflow: hidden; border-radius: 10px; border: 1px solid #dde3ec; }
+  .sky-wrap svg { display: block; width: 100%; height: auto; }
+  .sky-tools { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; margin-bottom: 10px; font-size: 0.88rem; }
+  .sky-tools select { padding: 5px 8px; border-radius: 6px; border: 1.5px solid #d1d9e0; }
+
+  /* Data tables */
+  .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(310px, 1fr)); gap: 20px; }
+  .grid .card { margin-bottom: 0; }
+  table.kv { width: 100%; border-collapse: collapse; font-size: 0.9rem; }
+  table.kv td { padding: 6px 8px; border-bottom: 1px solid #eef1f5; vertical-align: top; }
+  table.kv td:first-child { color: #444; }
+  table.kv td:last-child { text-align: left; font-variant-numeric: tabular-nums; white-space: nowrap; font-weight: 600; color: #1a1a2e; }
+  table.kv tr.hl td { background: #eef4fb; }
+  table.kv .unit { color: #888; font-weight: 400; }
+  .note { font-size: 0.8rem; color: #666; margin-top: 10px; line-height: 1.5; }
+
+  @media (max-width: 600px) {
+    .header h1 { font-size: 1.5rem; }
+    .form-row  { flex-direction: column; align-items: stretch; }
+    .card { padding: 16px; }
+  }
+
+  .site-nav { display:flex; justify-content:center; gap:8px; flex-wrap:wrap; margin-top:14px; }
+  .site-nav a { color:#e8d5b7; text-decoration:none; padding:7px 16px; border-radius:20px;
+                border:1px solid rgba(232,213,183,0.35); font-size:0.92rem; }
+  .site-nav a:hover { background:rgba(232,213,183,0.12); }
+  .site-nav a.active { background:#e8d5b7; color:#1a1a2e; font-weight:600; }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <h1>🌙 ראיית הירח — רגע נתון</h1>
+  <p>כל הנתונים האסטרונומיים של השמש והירח לדקה מסוימת ובמקום מסוים</p>
+  <nav class="site-nav"><a href="index.html">📅 טבלה שנתית</a><a href="moment.html" class="active">🕰️ רגע נתון</a></nav>
+</div>
+
+<div class="container">
+
+  <!-- Input card -->
+  <div class="card">
+    <div class="form-row">
+      <div class="form-group">
+        <label>תאריך (מקומי)</label>
+        <input type="date" id="inDate">
+      </div>
+      <div class="form-group">
+        <label>שעה (מקומית)</label>
+        <input type="time" id="inTime" step="60">
+      </div>
+      <div class="form-group">
+        <button class="btn btn-light" onclick="setNow()">🕒 עכשיו</button>
+      </div>
+      <div class="form-group">
+        <label>מיקום</label>
+        <select id="locPreset" onchange="onLocChange()">
+          <option value="IL-JER">ירושלים</option>
+          <option value="IL-TLV">תל אביב</option>
+          <option value="IL-HAI">חיפה</option>
+          <option value="IL-BEE">באר שבע</option>
+          <option value="US-NYC">ניו יורק</option>
+          <option value="US-LAX">לוס אנג'לס</option>
+          <option value="US-CHI">שיקגו</option>
+          <option value="US-MIA">מיאמי</option>
+          <option value="UK-LON">לונדון</option>
+          <option value="CA-TOR">טורונטו</option>
+          <option value="AU-MEL">מלבורן</option>
+          <option value="ZA-JHB">יוהנסבורג</option>
+          <option value="FR-PAR">פריז</option>
+          <option value="AR-BUE">בואנוס איירס</option>
+          <option value="GPS">📍 מיקום נוכחי...</option>
+          <option value="CUSTOM">מותאם אישית...</option>
+        </select>
+      </div>
+      <div class="custom-loc" id="customLoc">
+        <div class="form-group">
+          <label>קו רוחב (°N)</label>
+          <input type="number" id="customLat" value="31.78" step="0.01" style="width:100px">
+        </div>
+        <div class="form-group">
+          <label>קו אורך (°E)</label>
+          <input type="number" id="customLon" value="35.22" step="0.01" style="width:100px">
+        </div>
+        <div class="form-group">
+          <label title="גובה הצופה מעל האופק המערבי (לא מעל פני הים)">גובה מעל האופק (מ')</label>
+          <input type="number" id="customAlt" value="0" step="1" style="width:90px">
+        </div>
+      </div>
+      <div class="form-group">
+        <label>אזור זמן</label>
+        <select id="tzMode" onchange="onTzModeChange()">
+          <option value="auto">אוטומטי (כולל שעון קיץ)</option>
+          <option value="manual">היסט ידני מ-UTC</option>
+        </select>
+      </div>
+      <div class="form-group" id="grpZone">
+        <label>אזור (IANA)</label>
+        <input type="text" id="tzZone" value="Asia/Jerusalem" style="width:200px">
+      </div>
+      <div class="form-group" id="grpOffset" style="display:none">
+        <label>UTC±</label>
+        <input type="number" id="tzOffset" value="2" step="0.5" min="-12" max="14" style="width:80px">
+      </div>
+      <div class="form-group" style="margin-right:auto">
+        <button class="btn btn-primary" onclick="applyInputs()">⚙️ חשב</button>
+      </div>
+    </div>
+    <div class="tz-note" id="tzNote"></div>
+    <div id="status"></div>
+  </div>
+
+  <!-- Slider -->
+  <div class="card">
+    <div class="slider-row">
+      <button class="btn btn-light btn-sm" onclick="nudge(-10)">−10 ד'</button>
+      <button class="btn btn-light btn-sm" onclick="nudge(-1)">−1</button>
+      <input type="range" id="slider" min="-180" max="180" step="1" value="0" oninput="onSlider()">
+      <button class="btn btn-light btn-sm" onclick="nudge(1)">+1</button>
+      <button class="btn btn-light btn-sm" onclick="nudge(10)">+10 ד'</button>
+      <div style="flex-basis:100%;order:-1">
+        <div class="cur-time" id="curTime">--:--</div>
+        <div class="cur-sub" id="curSub"></div>
+      </div>
+    </div>
+    <div class="slider-scale"><span>−3 שעות</span><span>זמן שנבחר</span><span>+3 שעות</span></div>
+    <div class="form-row" style="margin-top:12px;gap:8px">
+      <button class="btn btn-light btn-sm" onclick="jumpTo('sunset')">🌇 קפוץ לשקיעה</button>
+      <button class="btn btn-light btn-sm" onclick="jumpTo('best')">⭐ קפוץ לזמן המיטבי (Yallop)</button>
+      <button class="btn btn-light btn-sm" onclick="jumpTo('moonset')">🌙 קפוץ לשקיעת הירח</button>
+      <button class="btn btn-light btn-sm" onclick="rebase()">📌 קבע כזמן הבסיס</button>
+    </div>
+  </div>
+
+  <!-- Verdict -->
+  <div class="card">
+    <div class="verdict" id="verdict"></div>
+  </div>
+
+  <!-- Sky diagram -->
+  <div class="card">
+    <h2>תרשים השמיים — מבט לכיוון האופק</h2>
+    <div class="sky-tools">
+      <label>רוחב התצוגה:
+        <select id="zoom" onchange="render()">
+          <option value="15">±15°</option>
+          <option value="25" selected>±25°</option>
+          <option value="45">±45°</option>
+          <option value="90">±90°</option>
+        </select>
+      </label>
+      <label>מרכז:
+        <select id="center" onchange="render()">
+          <option value="auto" selected>אוטומטי (מתאים את התצוגה לשמש ולירח)</option>
+          <option value="270">מערב (270°)</option>
+          <option value="moon">הירח</option>
+          <option value="sun">השמש</option>
+        </select>
+      </label>
+    </div>
+    <div class="sky-wrap" id="sky"></div>
+    <div class="note">
+      הגבהים בתרשים הם הגבהים הנראים (טופוצנטריים, כולל שבירת אור). הירח מוגדל פי כמה לשם הבהירות (וחרמש דק מאוד מוצג עבה יותר); כיוון החרמש ומופעו מחושבים
+      (הצד המואר פונה לשמש לאורך המעגל הגדול). הקו המקווקו הכתום הוא מישור המלקה (האקליפטיקה).
+      arcV = גובה הירח פחות גובה השמש, arcL = המרחק הזוויתי ירח–שמש, DAZ = הפרש האזימוטים.
+    </div>
+  </div>
+
+  <!-- Data -->
+  <div class="grid" id="dataGrid"></div>
+
+</div>
+
+<script src="astro.js"></script>
+<script>
+// ═══════════════════════════════════════════════════════════════
+// LOCATIONS (same presets as index.html, plus IANA time zones)
+// ═══════════════════════════════════════════════════════════════
+const LOCATIONS = {
+  'IL-JER': {name:'ירושלים',      lat:31.78, lon:35.22,  tz:2,   alt:800,  zone:'Asia/Jerusalem'},
+  'IL-TLV': {name:'תל אביב',      lat:32.07, lon:34.78,  tz:2,   alt:0,    zone:'Asia/Jerusalem'},
+  'IL-HAI': {name:'חיפה',         lat:32.82, lon:34.99,  tz:2,   alt:0,    zone:'Asia/Jerusalem'},
+  'IL-BEE': {name:'באר שבע',      lat:31.25, lon:34.79,  tz:2,   alt:280,  zone:'Asia/Jerusalem'},
+  'US-NYC': {name:'ניו יורק',     lat:40.71, lon:-74.00, tz:-5,  alt:0,    zone:'America/New_York'},
+  'US-LAX': {name:'לוס אנג\'לס',  lat:34.05, lon:-118.25,tz:-8,  alt:0,    zone:'America/Los_Angeles'},
+  'US-CHI': {name:'שיקגו',        lat:41.88, lon:-87.63, tz:-6,  alt:0,    zone:'America/Chicago'},
+  'US-MIA': {name:'מיאמי',        lat:25.76, lon:-80.19, tz:-5,  alt:0,    zone:'America/New_York'},
+  'UK-LON': {name:'לונדון',       lat:51.51, lon:-0.13,  tz:0,   alt:0,    zone:'Europe/London'},
+  'CA-TOR': {name:'טורונטו',      lat:43.65, lon:-79.38, tz:-5,  alt:0,    zone:'America/Toronto'},
+  'AU-MEL': {name:'מלבורן',       lat:-37.81,lon:144.96, tz:10,  alt:0,    zone:'Australia/Melbourne'},
+  'ZA-JHB': {name:'יוהנסבורג',    lat:-26.20,lon:28.04,  tz:2,   alt:1750, zone:'Africa/Johannesburg'},
+  'FR-PAR': {name:'פריז',         lat:48.85, lon:2.35,   tz:1,   alt:0,    zone:'Europe/Paris'},
+  'AR-BUE': {name:'בואנוס איירס', lat:-34.61,lon:-58.38, tz:-3,  alt:0,    zone:'America/Argentina/Buenos_Aires'},
+};
+const $ = id => document.getElementById(id);
+
+function setStatus(msg, type) {
+  $('status').innerHTML = msg ? `<div class="status ${type}">${msg}</div>` : '';
+}
+
+function onLocChange() {
+  const v = $('locPreset').value;
+  $('customLoc').classList.toggle('active', v === 'CUSTOM' || v === 'GPS');
+  if (v === 'GPS') { requestGPS(); return; }
+  if (LOCATIONS[v]) {
+    $('tzZone').value = LOCATIONS[v].zone;
+    $('tzOffset').value = LOCATIONS[v].tz;
+  }
+  applyInputs();
+}
+
+function requestGPS() {
+  if (!navigator.geolocation) {
+    setStatus('הדפדפן אינו תומך במיקום GPS', 'error');
+    $('locPreset').value = 'CUSTOM';
+    return;
+  }
+  setStatus('🔍 מאתר מיקום...', 'info');
+  navigator.geolocation.getCurrentPosition(
+    pos => {
+      const lat = Math.round(pos.coords.latitude  * 1000) / 1000;
+      const lon = Math.round(pos.coords.longitude * 1000) / 1000;
+      $('customLat').value = lat;
+      $('customLon').value = lon;
+      $('customAlt').value = pos.coords.altitude != null ? Math.round(pos.coords.altitude) : 0;
+      // The device's own time zone (assumed to be where the observer is)
+      try { $('tzZone').value = Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC'; } catch(e) {}
+      $('tzOffset').value = -new Date().getTimezoneOffset()/60;
+      setStatus(`📍 מיקום נמצא: ${lat}°, ${lon}°  (אזור זמן: ${$('tzZone').value})`, 'success');
+      applyInputs();
+    },
+    err => {
+      const msg = err.code === 1 ? 'הגישה למיקום נדחתה — אנא אפשר גישה בהגדרות הדפדפן'
+                : err.code === 2 ? 'לא ניתן לאתר מיקום כרגע'
+                : 'תם הזמן לאיתור מיקום';
+      setStatus(msg, 'error');
+      $('locPreset').value = 'CUSTOM';
+    },
+    {enableHighAccuracy: false, timeout: 10000, maximumAge: 60000}
+  );
+}
+
+function getLocation() {
+  const v = $('locPreset').value;
+  if (v === 'CUSTOM' || v === 'GPS') {
+    return {
+      name: v === 'GPS' ? 'מיקום נוכחי' : 'מותאם',
+      lat: parseFloat($('customLat').value),
+      lon: parseFloat($('customLon').value),
+      alt: parseFloat($('customAlt').value) || 0,
+    };
+  }
+  return LOCATIONS[v];
+}
+
+function onTzModeChange() {
+  const auto = $('tzMode').value === 'auto';
+  $('grpZone').style.display = auto ? '' : 'none';
+  $('grpOffset').style.display = auto ? 'none' : '';
+  applyInputs();
+}
+
+// ═══════════════════════════════════════════════════════════════
+// TIME ZONE HANDLING
+// ═══════════════════════════════════════════════════════════════
+function zoneValid(z) {
+  try { new Intl.DateTimeFormat('en-US', {timeZone: z}); return true; } catch(e) { return false; }
+}
+function tzAuto() { return $('tzMode').value === 'auto' && zoneValid($('tzZone').value.trim()); }
+// UTC offset (hours) in effect at UTC instant ms
+function offsetAt(ms) {
+  if (tzAuto()) return tzOffsetHours($('tzZone').value.trim(), ms);
+  return parseFloat($('tzOffset').value) || 0;
+}
+// Local wall-clock -> UTC ms
+function localToMs(y, mo, d, h, mi) {
+  if (tzAuto()) return zonedLocalToMs($('tzZone').value.trim(), y, mo, d, h, mi);
+  return Date.UTC(y, mo-1, d, h, mi) - (parseFloat($('tzOffset').value) || 0)*3600000;
+}
+// UTC ms -> local wall-clock parts
+function msToLocal(ms) {
+  const off = offsetAt(ms);
+  const d = new Date(ms + off*3600000);
+  return { y: d.getUTCFullYear(), mo: d.getUTCMonth()+1, d: d.getUTCDate(),
+           h: d.getUTCHours(), mi: d.getUTCMinutes(), s: d.getUTCSeconds(),
+           dow: d.getUTCDay(), off };
+}
+const p2 = n => String(n).padStart(2,'0');
+function offStr(off) {
+  const s = off < 0 ? '−' : '+', a = Math.abs(off), h = Math.floor(a), m = Math.round((a-h)*60);
+  return `UTC${s}${h}${m ? ':'+p2(m) : ''}`;
+}
+function fmtTime(jd, withSec) {
+  if (jd == null) return '—';
+  const L = msToLocal(Math.round(jdToMs(jd)/1000)*1000);
+  return `${p2(L.h)}:${p2(L.mi)}${withSec ? ':'+p2(L.s) : ''}`;
+}
+function fmtDateTime(jd) {
+  if (jd == null) return '—';
+  const L = msToLocal(Math.round(jdToMs(jd)/60000)*60000);
+  return `${p2(L.d)}/${p2(L.mo)}/${L.y} ${p2(L.h)}:${p2(L.mi)} (${DAYS_HEB[L.dow]})`;
+}
+function fmtDur(hours) {
+  const sign = hours < 0 ? '−' : '';
+  let mins = Math.round(Math.abs(hours)*60);
+  const d = Math.floor(mins/1440); mins -= d*1440;
+  const h = Math.floor(mins/60), m = mins - h*60;
+  return d ? `${sign}${d} ימים ${h}:${p2(m)} ש'` : `${sign}${h}:${p2(m)} ש'`;
+}
+function fmtMin(min) {
+  if (min == null) return '—';
+  const s = min < 0 ? '−' : '', a = Math.round(Math.abs(min));
+  return `${s}${Math.floor(a/60)}:${p2(a%60)} (${s}${a} דק')`;
+}
+function hms(deg) { // RA in hours
+  const h = deg/15, H = Math.floor(h), m = (h-H)*60, M = Math.floor(m), S = Math.round((m-M)*60);
+  return `${H}h ${p2(M)}m ${p2(S===60?59:S)}s`;
+}
+function dms(deg) {
+  const s = deg < 0 ? '−' : '+', a = Math.abs(deg), D = Math.floor(a), m = (a-D)*60, M = Math.floor(m);
+  return `${s}${D}° ${p2(M)}′ ${p2(Math.round((m-M)*60) % 60)}″`;
+}
+const f = (x, n=2) => (x == null || isNaN(x)) ? '—' : x.toFixed(n);
+
+// ═══════════════════════════════════════════════════════════════
+// STATE
+// ═══════════════════════════════════════════════════════════════
+let baseMs = null;     // time chosen in the inputs (UTC ms)
+const dayCache = new Map();
+
+function setNow() {
+  const now = Date.now();
+  const L = msToLocal(now);
+  $('inDate').value = `${L.y}-${p2(L.mo)}-${p2(L.d)}`;
+  $('inTime').value = `${p2(L.h)}:${p2(L.mi)}`;
+  applyInputs();
+}
+
+function applyInputs() {
+  const dv = $('inDate').value, tv = $('inTime').value;
+  if (!dv || !tv) return;
+  const [y, mo, d] = dv.split('-').map(Number);
+  const [h, mi] = tv.split(':').map(Number);
+  if ($('tzMode').value === 'auto' && !zoneValid($('tzZone').value.trim()))
+    setStatus(`אזור הזמן "${$('tzZone').value}" לא מוכר — משתמש בהיסט הידני (${offStr(parseFloat($('tzOffset').value)||0)})`, 'error');
+  else if ($('status').textContent.startsWith('אזור הזמן')) setStatus('', '');
+  baseMs = localToMs(y, mo, d, h, mi);
+  $('slider').value = 0;
+  render();
+}
+
+function currentMs() { return baseMs + parseInt($('slider').value)*60000; }
+function onSlider() { render(); }
+function nudge(dm) {
+  const s = $('slider'), v = parseInt(s.value) + dm;
+  if (v < -180 || v > 180) { baseMs = currentMs() + dm*60000; s.value = 0; syncInputs(); }
+  else s.value = v;
+  render();
+}
+function syncInputs() {
+  const L = msToLocal(baseMs);
+  $('inDate').value = `${L.y}-${p2(L.mo)}-${p2(L.d)}`;
+  $('inTime').value = `${p2(L.h)}:${p2(L.mi)}`;
+}
+function rebase() { baseMs = currentMs(); $('slider').value = 0; syncInputs(); render(); }
+function jumpTo(what) {
+  const D = lastDay; if (!D) return;
+  const jd = what === 'sunset' ? D.rs.sunset : what === 'moonset' ? (D.lag && D.lag.moonset) : D.bestJD;
+  if (jd == null) { setStatus('האירוע אינו קיים ביום זה', 'error'); return; }
+  baseMs = Math.round(jdToMs(jd)/60000)*60000;
+  $('slider').value = 0; syncInputs(); render();
+}
+
+// Daily data for the local civil day containing ms (cached)
+let lastDay = null;
+function dayData(ms, loc) {
+  const L = msToLocal(ms);
+  const key = [L.y, L.mo, L.d, loc.lat, loc.lon, loc.alt, $('tzMode').value, $('tzZone').value, $('tzOffset').value].join('|');
+  if (dayCache.has(key)) return dayCache.get(key);
+  const midMs = localToMs(L.y, L.mo, L.d, 0, 0);
+  const jd0 = msToJD(midMs);
+  const rs = riseSetDay(jd0, loc.lat, loc.lon, loc.alt);
+  const lag = lagTime(rs.sunset, loc.lat, loc.lon, loc.alt);
+  let bestJD = null, best = null;
+  if (rs.sunset != null && lag && lag.lagMin > 0) {
+    bestJD = rs.sunset + (4/9)*lag.lagMin/1440;
+    best = skyAtInstant(bestJD, loc.lat, loc.lon, loc.alt);
+  }
+  const atSunset = rs.sunset != null ? skyAtInstant(rs.sunset, loc.lat, loc.lon, loc.alt) : null;
+  const D = { y: L.y, mo: L.mo, d: L.d, rs, lag, bestJD, best, atSunset };
+  if (dayCache.size > 200) dayCache.clear();
+  dayCache.set(key, D);
+  return D;
+}
+
+// ═══════════════════════════════════════════════════════════════
+// RENDER
+// ═══════════════════════════════════════════════════════════════
+function render() {
+  if (baseMs == null) return;
+  const loc = getLocation();
+  if (!loc || isNaN(loc.lat) || isNaN(loc.lon)) { setStatus('נתוני מיקום חסרים', 'error'); return; }
+  try {
+    const ms = currentMs();
+    const jd = msToJD(ms);
+    const S = skyAtInstant(jd, loc.lat, loc.lon, loc.alt);
+    const D = dayData(ms, loc); lastDay = D;
+    const C = conjunctionsAround(jd);
+    const L = msToLocal(ms);
+
+    // Hebrew date (day begins at sunset)
+    let heb = gregorianToHebrew(L.y, L.mo, L.d), afterSS = false;
+    if (D.rs.sunset != null && jd >= D.rs.sunset) {
+      const n = new Date(Date.UTC(L.y, L.mo-1, L.d + 1));
+      heb = gregorianToHebrew(n.getUTCFullYear(), n.getUTCMonth()+1, n.getUTCDate());
+      afterSS = true;
+    }
+    const hebStr = `${hebDayNumeral(heb.day)} ${heb.monthName} ה'${hebYearDigits(heb.year)}${afterSS ? ' (אור ל־, אחרי השקיעה)' : ''}`;
+
+    // Header time
+    const off = parseInt($('slider').value);
+    $('curTime').textContent = `${p2(L.d)}/${p2(L.mo)}/${L.y}  ${p2(L.h)}:${p2(L.mi)}`;
+    $('curSub').textContent = `יום ${DAYS_HEB[L.dow]} · ${hebStr} · ${offStr(L.off)}` +
+      (off ? ` · ${off>0?'+':'−'}${Math.abs(off)} דק' מהזמן שנבחר` : '') + ` · ${loc.name}`;
+    $('tzNote').textContent = tzAuto()
+      ? `אזור זמן ${$('tzZone').value}: ${offStr(L.off)} ברגע זה (שעון קיץ/חורף מחושב אוטומטית)`
+      : `היסט קבוע: ${offStr(L.off)} (ללא התאמה לשעון קיץ)`;
+
+    // Verdict
+    // Same criteria as the rise/set calculations (upper limb, refraction, horizon dip)
+    const sunUp = S.sun.alt > -0.8333 - horizonDip(loc.alt);
+    const moonUp = S.moon.altTopo > -34/60 - S.moon.sdMin/60 - horizonDip(loc.alt);
+    $('verdict').innerHTML = `
+      <div class="pill ${S.yallop.cls}">Yallop ברגע זה: ${S.yallop.code} — ${S.yallop.text} <small>(q = ${f(S.q,3)})</small></div>
+      ${D.best ? `<div class="pill ${D.best.yallop.cls}">בזמן המיטבי ${fmtTime(D.bestJD)}: ${D.best.yallop.code} <small>(q = ${f(D.best.q,3)})</small></div>` : ''}
+      ${D.best ? `<div class="pill ${D.best.odeh.cls}">Odeh בזמן המיטבי: ${D.best.odeh.code} — ${D.best.odeh.text} <small>(V = ${f(D.best.odehV,2)})</small></div>` : ''}
+      <div class="pill" style="background:#eef2f7;color:#2c3e6b">${sunUp ? '☀️ השמש מעל האופק' : '☀️ השמש מתחת לאופק'} · ${moonUp ? '🌙 הירח מעל האופק' : '🌙 הירח מתחת לאופק'}</div>`;
+
+    drawSky(S, loc);
+    renderData(S, D, C, jd, loc);
+  } catch (e) {
+    console.error(e);
+    setStatus('שגיאה: ' + e.message, 'error');
+  }
+}
+
+function row(label, value, unit, hl) {
+  return `<tr${hl ? ' class="hl"' : ''}><td>${label}</td><td><span dir="auto">${value}${unit ? ' <span class="unit">'+unit+'</span>' : ''}</span></td></tr>`;
+}
+function card(title, rows, note) {
+  return `<div class="card"><h2>${title}</h2><table class="kv">${rows.join('')}</table>${note ? `<div class="note">${note}</div>` : ''}</div>`;
+}
+
+function renderData(S, D, C, jd, loc) {
+  const ageH = (jd - C.prev)*24, toNextH = (C.next - jd)*24;
+  const lagMin = D.lag ? D.lag.lagMin : null;
+  const html = [
+    card('☀️ השמש', [
+      row('גובה (גיאומטרי)', f(S.sun.alt,3), '°', true),
+      row('גובה נראה (עם שבירה)', f(S.sun.altApp,3), '°'),
+      row('אזימוט', f(S.sun.az,2), '°', true),
+      row('עלייה ישרה RA', hms(S.sun.ra)),
+      row('נטייה Dec', dms(S.sun.dec)),
+      row('אורך אקליפטי', f(S.sun.lon,3), '°'),
+      row('מרחק', f(S.sun.distAU,5), 'AU'),
+    ]),
+    card('🌙 הירח', [
+      row('גובה גיאוצנטרי (ללא שבירה)', f(S.moon.altGeo,3), '°', true),
+      row('גובה טופוצנטרי (ללא שבירה)', f(S.moon.altTopo,3), '°'),
+      row('גובה נראה (טופוצנטרי + שבירה)', f(S.moon.altApp,3), '°', true),
+      row('אזימוט (טופוצנטרי)', f(S.moon.az,2), '°', true),
+      row('RA / Dec גיאוצנטרי', `${hms(S.moon.ra)}  ${dms(S.moon.dec)}`),
+      row('RA / Dec טופוצנטרי', `${hms(S.moon.raTopo)}  ${dms(S.moon.decTopo)}`),
+      row('אורך / רוחב אקליפטי', `${f(S.moon.lon,3)}° / ${f(S.moon.lat,3)}°`),
+      row('מרחק ירח–ארץ', Math.round(S.moon.distKm).toLocaleString('en-US'), 'ק"מ'),
+      row('פרלקסה אופקית / חצי קוטר', `${f(S.moon.parallaxMin,2)}′ / ${f(S.moon.sdMin,2)}′`),
+    ]),
+    card('📐 זוויות', [
+      row('ARCV — גובה ירח פחות גובה שמש (גיאוצנטרי, כבטבלה / Yallop / חזון שמיים)', f(S.arcvYallop,2), '°', true),
+      row('ARCV טופוצנטרי (Odeh)', f(S.arcvTopo,2), '°'),
+      row('arcL — כהגדרת הטבלה √(L1²+R1²)', f(S.arclTable,2), '°', true),
+      row('אלונגציה גיאוצנטרית (מעגל גדול)', f(S.elongGeo,2), '°'),
+      row('אלונגציה טופוצנטרית', f(S.elongTopo,2), '°'),
+      row('DAZ (אז׳ שמש − אז׳ ירח)', f(S.daz,2), '°', true),
+      row('L1 (הפרש אורך אקליפטי)', f(S.l1,2), '°'),
+      row('R1 (רוחב הירח)', f(S.r1,2), '°'),
+    ]),
+    card('🌒 מופע', [
+      row('אחוז מואר (כבטבלה)', f(S.illumTable,2), '%', true),
+      row('אחוז מואר (זווית מופע, Meeus 48)', f(S.illumTrue,2), '%'),
+      row('זווית מופע', f(S.phaseAngle,2), '°'),
+      row('רוחב החרמש W (טופוצנטרי)', f(S.Wtopo,3), '′', true),
+      row('רוחב החרמש W (גיאוצנטרי)', f(S.Wgeo,3), '′'),
+      row('זווית מיקום הצד המואר χ', f(S.chi,1), '°'),
+      row('Yallop q ברגע זה', `${f(S.q,3)} (${S.yallop.code})`, '', true),
+      row('Odeh V ברגע זה', `${f(S.odehV,2)} (${S.odeh.code})`, ''),
+    ], 'W = SD·(1−cos ARCL), כאשר SD = 0.27245·π (Yallop 1997). q = (ARCV − (11.8371 − 6.3226W + 0.7319W² − 0.1018W³))/10, עם ARCV = גובה ירח פחות גובה שמש (גיאוצנטרי, ללא שבירה).'),
+    card('🕰️ מולד וגיל הירח', [
+      row('המולד האסטרונומי הקודם', fmtDateTime(C.prev), '', true),
+      row('גיל הירח (מאז המולד)', fmtDur(ageH), '', true),
+      row('המולד האסטרונומי הבא', fmtDateTime(C.next)),
+      row('זמן עד המולד הבא', fmtDur(toNextH)),
+    ], 'זמני המולד לפי Meeus פרק 49, מתוקנים מזמן דינמי (TT) לזמן אוניברסלי לפי ΔT, ומוצגים בשעון המקומי.'),
+    card(`🌅 זמני היום (${p2(D.d)}/${p2(D.mo)}/${D.y})`, [
+      row('זריחה', fmtTime(D.rs.sunrise, true)),
+      row('שקיעה', fmtTime(D.rs.sunset, true), '', true),
+      row('זריחת הירח', fmtTime(D.rs.moonrise, true)),
+      row('שקיעת הירח', fmtTime(D.rs.moonset, true), '', true),
+      row('שקיעת הירח הסמוכה לשקיעה', D.lag ? fmtTime(D.lag.moonset, true) : '—'),
+      row('Lag (שקיעת ירח − שקיעה)', fmtMin(lagMin), '', true),
+      row('זמן מיטבי (שקיעה + 4/9·Lag)', D.bestJD ? fmtTime(D.bestJD) : '—'),
+      row('Yallop q בזמן המיטבי', D.best ? `${f(D.best.q,3)} (${D.best.yallop.code})` : '—', '', true),
+      row('Odeh V בזמן המיטבי', D.best ? `${f(D.best.odehV,2)} (${D.best.odeh.code})` : '—'),
+      row('בשקיעה: arcV / arcL / DAZ', D.atSunset ? `${f(D.atSunset.arcvTable)}° / ${f(D.atSunset.arclTable)}° / ${f(D.atSunset.daz)}°` : '—'),
+    ], `שקיעה/זריחה: שפה עליונה, עם שבירה ושקיעת אופק לגובה ${loc.alt} מ' מעל האופק המערבי. ירח: שפה עליונה, טופוצנטרי, עם שבירה.`),
+  ];
+  $('dataGrid').innerHTML = html.join('');
+}
+
+// ═══════════════════════════════════════════════════════════════
+// SKY DIAGRAM (SVG)
+// ═══════════════════════════════════════════════════════════════
+function drawSky(S, loc) {
+  const Wd = 900, Ht = 420, horizonY = 320;
+  const cmode = $('center').value;
+  let half = parseFloat($('zoom').value);
+  if (cmode === 'auto' && S.moon.altApp > -5) {
+    // widen the view (up to ±90°) so that both the sun and the moon fit
+    const needH = Math.abs(norm180(S.moon.az - S.sun.az))/2 + 8;
+    const needV = (Math.max(S.moon.altApp, S.sun.altApp) + 3) / (horizonY/(Wd/2));
+    half = Math.min(90, Math.max(half, needH, needV));
+  }
+  const scale = (Wd/2)/half;                        // px per degree
+  let azC;
+  if (cmode === 'auto') {
+    // midpoint of sun & moon if they are close, otherwise the sun (if up/near) or the moon
+    const sep = Math.abs(norm180(S.moon.az - S.sun.az));
+    if (sep < half*1.9) azC = norm360(S.sun.az + norm180(S.moon.az - S.sun.az)/2);
+    else azC = S.sun.altApp > -12 ? S.sun.az : S.moon.az;
+  } else if (cmode === 'moon') azC = S.moon.az;
+  else if (cmode === 'sun') azC = S.sun.az;
+  else azC = parseFloat(cmode);
+
+  const X = az => Wd/2 + norm180(az - azC)*scale;
+  const Y = alt => horizonY - alt*scale;
+  const inView = (x, y) => x > -20 && x < Wd+20 && y > -20 && y < Ht+20;
+
+  // Sky colour by sun altitude
+  const sa = S.sun.alt;
+  let skyTop, skyBot;
+  if (sa > 0)       { skyTop = '#4a90d9'; skyBot = '#bcdcf5'; }
+  else if (sa > -6) { skyTop = '#3a5a8c'; skyBot = '#f2a65a'; }
+  else if (sa > -12){ skyTop = '#1c2c52'; skyBot = '#7a5a7a'; }
+  else if (sa > -18){ skyTop = '#0e1530'; skyBot = '#2a2f55'; }
+  else              { skyTop = '#070b1c'; skyBot = '#121a35'; }
+
+  let svg = `<svg viewBox="0 0 ${Wd} ${Ht}" xmlns="http://www.w3.org/2000/svg" direction="ltr" font-family="Segoe UI, Arial, sans-serif">
+  <defs>
+    <linearGradient id="skyg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="${skyTop}"/><stop offset="1" stop-color="${skyBot}"/>
+    </linearGradient>
+    <clipPath id="skyclip"><rect x="0" y="0" width="${Wd}" height="${horizonY}"/></clipPath>
+  </defs>
+  <rect x="0" y="0" width="${Wd}" height="${horizonY}" fill="url(#skyg)"/>
+  <rect x="0" y="${horizonY}" width="${Wd}" height="${Ht-horizonY}" fill="#2d2a24"/>`;
+
+  // Altitude grid lines
+  const gstep = half <= 15 ? 2 : half <= 25 ? 5 : 10;
+  for (let a = gstep; Y(a) > 0; a += gstep)
+    svg += `<line x1="0" x2="${Wd}" y1="${Y(a)}" y2="${Y(a)}" stroke="rgba(255,255,255,0.12)"/>
+            <text x="6" y="${Y(a)-3}" font-size="11" fill="rgba(255,255,255,0.55)">${a}°</text>`;
+
+  // Azimuth ticks
+  const cardinal = {0:'צפון',45:'צ-מז',90:'מזרח',135:'ד-מז',180:'דרום',225:'ד-מע',270:'מערב',315:'צ-מע'};
+  const tstep = half <= 15 ? 2 : half <= 25 ? 5 : half <= 45 ? 10 : 15;
+  for (let k = Math.ceil((azC-half)/tstep)*tstep; k <= azC+half; k += tstep) {
+    const az = norm360(k), x = X(az);
+    svg += `<line x1="${x}" x2="${x}" y1="${horizonY}" y2="${horizonY+6}" stroke="#bbb"/>
+            <text x="${x}" y="${horizonY+19}" font-size="11" fill="#ccc" text-anchor="middle">${Math.round(az)}°</text>`;
+    if (cardinal[Math.round(az)] !== undefined && Math.round(az) === az)
+      svg += `<text x="${x}" y="${horizonY+35}" font-size="13" fill="#e8d5b7" text-anchor="middle" font-weight="bold">${cardinal[az]}</text>`;
+  }
+
+  // Ecliptic (apparent: geocentric positions, with refraction)
+  const pts = [];
+  const lst0 = lst(S.jd, loc.lon);
+  for (let dl = -120; dl <= 120; dl += 2) {
+    const eq = eclipticToEquatorial(norm360(S.sun.lon + dl), 0, S.jd);
+    const h = equatorialToAltAz(eq.ra, eq.dec, loc.lat, lst0);
+    const alt = h.alt + refraction(h.alt);
+    if (Math.abs(norm180(h.az - azC)) > half*1.5) { pts.push(null); continue; }
+    pts.push(`${X(h.az).toFixed(1)},${Y(alt).toFixed(1)}`);
+  }
+  let seg = [];
+  const flush = () => { if (seg.length > 1) svg += `<polyline points="${seg.join(' ')}" fill="none" stroke="#f0a040" stroke-width="1.5" stroke-dasharray="6 4" opacity="0.85"/>`; seg = []; };
+  for (const p of pts) { if (p) seg.push(p); else flush(); }
+  flush();
+
+  // Positions (apparent)
+  const sx = X(S.sun.az), sy = Y(S.sun.altApp);
+  const mx = X(S.moon.az), my = Y(S.moon.altApp);
+  const sunR = Math.max(7, 0.267*scale);
+  const moonR = Math.max(16, 0.26*scale*3);
+
+  // Guide lines (like the explanation diagram)
+  // vertical through the sun
+  svg += `<line x1="${sx}" x2="${sx}" y1="0" y2="${horizonY}" stroke="rgba(255,255,255,0.25)"/>`;
+  if (inView(mx, my)) {
+    // arcV: vertical from moon to horizon
+    svg += `<line x1="${mx}" x2="${mx}" y1="${my}" y2="${horizonY}" stroke="#9fe0ff" stroke-width="1.5"/>
+            <text x="${mx-6}" y="${(my+horizonY)/2}" font-size="13" fill="#9fe0ff" text-anchor="end">arcV ${f(S.arcvYallop,1)}°</text>`;
+    // arcL: moon to sun
+    svg += `<line x1="${mx}" y1="${my}" x2="${sx}" y2="${sy}" stroke="#ffe08a" stroke-width="1.5" stroke-dasharray="4 3"/>
+            <text x="${(mx+sx)/2+8}" y="${(my+sy)/2}" font-size="13" fill="#ffe08a">arcL ${f(S.arclTable,1)}°</text>`;
+    // DAZ along the horizon
+    svg += `<line x1="${mx}" x2="${mx}" y1="${horizonY}" y2="${horizonY+48}" stroke="#ff9f9f" stroke-dasharray="2 2"/>
+            <line x1="${sx}" x2="${sx}" y1="${horizonY}" y2="${horizonY+48}" stroke="#ff9f9f" stroke-dasharray="2 2"/>
+            <line x1="${mx}" x2="${sx}" y1="${horizonY+46}" y2="${horizonY+46}" stroke="#ff9f9f" stroke-width="3"/>
+            <text x="${(mx+sx)/2}" y="${horizonY+64}" font-size="13" fill="#ff9f9f" text-anchor="middle">DAZ ${f(S.daz,1)}°</text>`;
+  }
+
+  // Horizon line
+  svg += `<line x1="0" x2="${Wd}" y1="${horizonY}" y2="${horizonY}" stroke="#111" stroke-width="3"/>`;
+
+  // Sun
+  if (inView(sx, sy)) {
+    svg += `<circle cx="${sx}" cy="${sy}" r="${sunR}" fill="#ffd400" stroke="#c99a00" stroke-width="1.5" opacity="${S.sun.altApp < 0 ? 0.55 : 1}"/>
+            <text x="${sx}" y="${Math.min(sy+sunR+16, Ht-6)}" font-size="12" fill="#ffe680" text-anchor="middle">${f(S.sun.az,1)}°</text>`;
+  } else {
+    svg += edgeMarker(sx, sy, 'שמש', Wd, Ht, '#ffd400');
+  }
+
+  // Moon (crescent)
+  if (inView(mx, my)) {
+    // Very thin crescents are thickened for display only (min. 10% of the disk)
+    const k = S.illumTrue/100 < 0.5 ? Math.max(S.illumTrue/100, 0.10) : S.illumTrue/100;
+    const theta = S.brightLimbFromZenith*Math.PI/180;      // from zenith toward +az (= screen right)
+    const rot = Math.atan2(-Math.cos(theta), Math.sin(theta))*180/Math.PI; // screen angle of the sun direction
+    const r = moonR, tx = Math.abs(1 - 2*k)*r;
+    const sweepT = k < 0.5 ? 0 : 1;
+    svg += `<g transform="translate(${mx},${my}) rotate(${rot.toFixed(2)})" opacity="${S.moon.altApp < 0 ? 0.55 : 1}">
+      <circle r="${r}" fill="#3a3a48" stroke="rgba(255,255,255,0.25)"/>
+      <path d="M0,${-r} A${r},${r} 0 0 1 0,${r} A${tx.toFixed(2)},${r} 0 0 ${sweepT} 0,${-r} Z" fill="#fff6c8"/>
+    </g>
+    <text x="${mx}" y="${my-r-8}" font-size="12" fill="#fff" text-anchor="middle">ירח ${f(S.illumTrue,1)}%</text>`;
+  } else {
+    svg += edgeMarker(mx, my, 'ירח', Wd, Ht, '#fff6c8');
+  }
+
+  svg += `<text x="${Wd-8}" y="18" font-size="12" fill="rgba(255,255,255,0.75)" text-anchor="end">גובה השמש ${f(S.sun.altApp,2)}° · גובה הירח ${f(S.moon.altApp,2)}°</text>`;
+  svg += `</svg>`;
+  $('sky').innerHTML = svg;
+}
+function edgeMarker(x, y, label, Wd, Ht, color) {
+  const cx = Math.max(8, Math.min(Wd-8, x)), cy = Math.max(38, Math.min(Ht-60, y));
+  const arrow = x < 0 ? '◀' : x > Wd ? '▶' : y < 0 ? '▲' : '▼';
+  const anchor = cx < Wd*0.2 ? 'start' : cx > Wd*0.8 ? 'end' : 'middle';
+  return `<text x="${cx}" y="${cy}" font-size="13" fill="${color}" text-anchor="${anchor}" direction="rtl" unicode-bidi="plaintext">${arrow} ${label} (מחוץ לתצוגה)</text>`;
+}
+
+// ═══════════════════════════════════════════════════════════════
+// INIT
+// ═══════════════════════════════════════════════════════════════
+['inDate','inTime','customLat','customLon','customAlt','tzZone','tzOffset']
+  .forEach(id => $(id).addEventListener('change', applyInputs));
+window.addEventListener('load', () => {
+  // Default: the current time (in the selected zone), rounded to the minute
+  const L = msToLocal(Date.now());
+  $('inDate').value = `${L.y}-${p2(L.mo)}-${p2(L.d)}`;
+  $('inTime').value = `${p2(L.h)}:${p2(L.mi)}`;
+  applyInputs();
+});
+</script>
+</body>
+</html>

@@ -1,0 +1,538 @@
+<!DOCTYPE html>
+<html dir="rtl" lang="he">
+<head>
+<meta charset="UTF-8">
+<meta name="description" content="חישוב אסטרונומי של ראיית הירח החדש לקביעת ראש חודש">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ראיית הירח - חישוב אסטרונומי</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: 'Segoe UI', Arial, sans-serif;
+    background: #f0f4f8;
+    color: #1a1a2e;
+    direction: rtl;
+    min-height: 100vh;
+  }
+  .header {
+    background: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%);
+    color: #e8d5b7;
+    padding: 28px 32px 20px;
+    text-align: center;
+    box-shadow: 0 4px 16px rgba(0,0,0,0.3);
+  }
+  .header h1 { font-size: 2.2rem; letter-spacing: 2px; margin-bottom: 6px; }
+  .header p  { font-size: 0.95rem; opacity: 0.75; }
+  .container { max-width: 1400px; margin: 0 auto; padding: 24px 16px; }
+  .card {
+    background: white;
+    border-radius: 12px;
+    padding: 24px;
+    box-shadow: 0 2px 12px rgba(0,0,0,0.08);
+    margin-bottom: 20px;
+  }
+  .form-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 16px;
+    align-items: flex-end;
+  }
+  .form-group { display: flex; flex-direction: column; gap: 5px; }
+  .form-group label { font-size: 0.85rem; color: #555; font-weight: 600; }
+  .form-group input, .form-group select {
+    padding: 9px 12px;
+    border: 1.5px solid #d1d9e0;
+    border-radius: 8px;
+    font-size: 1rem;
+    background: #f8fafc;
+    min-width: 120px;
+    direction: ltr;
+    text-align: center;
+  }
+  .form-group input:focus, .form-group select:focus {
+    outline: none;
+    border-color: #4472c4;
+    background: white;
+  }
+  .btn {
+    padding: 10px 24px;
+    border: none;
+    border-radius: 8px;
+    font-size: 1rem;
+    cursor: pointer;
+    font-weight: 600;
+    transition: all 0.2s;
+  }
+  .btn-primary { background: #4472c4; color: white; }
+  .btn-primary:hover { background: #3461b3; transform: translateY(-1px); }
+  .btn-success { background: #217346; color: white; }
+  .btn-success:hover { background: #185c38; transform: translateY(-1px); }
+  .btn:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
+  .custom-loc { display: none; }
+  .custom-loc.active { display: flex; flex-wrap: wrap; gap: 12px; }
+
+  /* Table */
+  .table-wrapper { overflow-x: auto; }
+  table {
+    border-collapse: collapse;
+    width: 100%;
+    font-size: 0.82rem;
+    direction: rtl;
+  }
+  thead tr { background: #2c3e6b; color: white; }
+  thead th {
+    padding: 9px 8px;
+    text-align: center;
+    font-weight: 600;
+    white-space: nowrap;
+    border: 1px solid #1a2a50;
+  }
+  thead tr:first-child th { background: #1a1a2e; font-size: 0.9rem; }
+  tbody td {
+    padding: 7px 8px;
+    text-align: center;
+    border: 1px solid #dde3ec;
+    white-space: nowrap;
+  }
+  .row-month td { background: #dce6f1; font-weight: 700; }
+  .row-day1 td { background: #eef4fb; }
+  .row-day2 td { background: #f8fafd; }
+  .sep-row td { background: #2c3e6b; height: 3px; padding: 0; }
+  .vis-yes  { background: #c6efce !important; color: #1e5c2e; font-weight: 700; }
+  .vis-maybe{ background: #ffeb9c !important; color: #7d5a00; }
+  .vis-no   { background: #ffc7ce !important; color: #9c1a28; }
+
+  .status { padding: 12px; border-radius: 8px; margin-top: 12px; font-size: 0.95rem; }
+  .status.info    { background: #dbeafe; color: #1e40af; }
+  .status.success { background: #dcfce7; color: #166534; }
+  .status.error   { background: #fee2e2; color: #991b1b; }
+
+  .legend {
+    display: flex; gap: 16px; flex-wrap: wrap;
+    margin-bottom: 12px; font-size: 0.82rem;
+  }
+  .legend-item { display: flex; align-items: center; gap: 6px; }
+  .legend-dot  { width: 14px; height: 14px; border-radius: 3px; }
+
+  /* Year-type toggle */
+  .year-toggle { display:flex; border:1.5px solid #d1d9e0; border-radius:8px; overflow:hidden; }
+  .ytog-btn {
+    flex:1; padding:7px 14px; border:none; background:#f8fafc;
+    font-size:0.92rem; cursor:pointer; font-weight:600; color:#555;
+    transition:background 0.15s, color 0.15s;
+  }
+  .ytog-btn:first-child { border-left:1px solid #d1d9e0; }
+  .ytog-btn.active { background:#4472c4; color:#fff; }
+
+  @media (max-width: 600px) {
+    .header h1 { font-size: 1.5rem; }
+    .form-row  { flex-direction: column; }
+  }
+
+  .site-nav { display:flex; justify-content:center; gap:8px; flex-wrap:wrap; margin-top:14px; }
+  .site-nav a { color:#e8d5b7; text-decoration:none; padding:7px 16px; border-radius:20px;
+                border:1px solid rgba(232,213,183,0.35); font-size:0.92rem; }
+  .site-nav a:hover { background:rgba(232,213,183,0.12); }
+  .site-nav a.active { background:#e8d5b7; color:#1a1a2e; font-weight:600; }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <h1>🌙 ראיית הירח</h1>
+  <p>חישוב אסטרונומי של זמני ראיית הירח לקביעת ראש חודש</p>
+  <nav class="site-nav"><a href="index.html" class="active">📅 טבלה שנתית</a><a href="moment.html">🕰️ רגע נתון</a></nav>
+</div>
+
+<div class="container">
+
+  <!-- Input card -->
+  <div class="card">
+    <div class="form-row">
+      <div class="form-group">
+        <label>סוג שנה</label>
+        <div class="year-toggle">
+          <button class="ytog-btn active" id="toggleHeb"  onclick="setYearMode('heb')">עברית</button>
+          <button class="ytog-btn"        id="toggleGreg" onclick="setYearMode('greg')">לועזית</button>
+        </div>
+      </div>
+      <div class="form-group" id="grpHeb">
+        <label>שנה עברית</label>
+        <input type="number" id="hebYear" value="5786" min="5600" max="5900" style="width:100px">
+      </div>
+      <div class="form-group" id="grpGreg" style="display:none">
+        <label title="השנה העברית שמתחילה בסתיו של השנה הלועזית שנבחרה">שנה לועזית (תשרי בסתיו של שנה זו)</label>
+        <input type="number" id="gregYear" value="2025" min="1839" max="2139" style="width:100px">
+      </div>
+      <div class="form-group">
+        <label>מיקום</label>
+        <select id="locPreset" onchange="onLocChange()">
+          <option value="IL-JER">ירושלים</option>
+          <option value="IL-TLV">תל אביב</option>
+          <option value="IL-HAI">חיפה</option>
+          <option value="IL-BEE">באר שבע</option>
+          <option value="US-NYC">ניו יורק</option>
+          <option value="US-LAX">לוס אנג'לס</option>
+          <option value="US-CHI">שיקגו</option>
+          <option value="US-MIA">מיאמי</option>
+          <option value="UK-LON">לונדון</option>
+          <option value="CA-TOR">טורונטו</option>
+          <option value="AU-MEL">מלבורן</option>
+          <option value="ZA-JHB">יוהנסבורג</option>
+          <option value="FR-PAR">פריז</option>
+          <option value="AR-BUE">בואנוס איירס</option>
+          <option value="GPS">📍 מיקום נוכחי...</option>
+          <option value="CUSTOM">מותאם אישית...</option>
+        </select>
+      </div>
+      <div class="custom-loc" id="customLoc">
+        <div class="form-group">
+          <label>קו רוחב (°N)</label>
+          <input type="number" id="customLat" value="31.78" step="0.01" style="width:90px">
+        </div>
+        <div class="form-group">
+          <label>קו אורך (°E)</label>
+          <input type="number" id="customLon" value="35.22" step="0.01" style="width:90px">
+        </div>
+        <div class="form-group">
+          <label title="היסט קבוע מ-UTC (ללא שעון קיץ)">UTC± (קבוע)</label>
+          <input type="number" id="customTz" value="2" step="1" min="-12" max="14" style="width:70px">
+        </div>
+        <div class="form-group">
+          <label title="גובה הצופה מעל האופק המערבי (לא מעל פני הים)">גובה מעל האופק (מ')</label>
+          <input type="number" id="customAlt" value="0" step="1" style="width:80px">
+        </div>
+      </div>
+      <div class="form-group" style="justify-content: flex-end; margin-right: auto;">
+        <button class="btn btn-primary" onclick="calculate()" id="btnCalc">⚙️ חשב</button>
+      </div>
+    </div>
+    <div id="status"></div>
+  </div>
+
+  <!-- Results card -->
+  <div class="card" id="resultsCard" style="display:none">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;flex-wrap:wrap;gap:10px;">
+      <div>
+        <strong id="resultsTitle" style="font-size:1.1rem;"></strong><br>
+        <span id="resultsSubtitle" style="color:#666;font-size:0.85rem;"></span>
+      </div>
+      <button class="btn btn-success" onclick="downloadExcel()" id="btnExcel">⬇ הורד Excel</button>
+    </div>
+    <div class="legend">
+      <span class="legend-item"><span class="legend-dot" style="background:#c6efce;border:1px solid #92d050"></span> נראה</span>
+      <span class="legend-item"><span class="legend-dot" style="background:#ffeb9c;border:1px solid #ffbf00"></span> ספק / גבולי</span>
+      <span class="legend-item"><span class="legend-dot" style="background:#ffc7ce;border:1px solid #ff0000"></span> לא נראה</span>
+      <span class="legend-item" style="color:#666">ההערכה לפי קריטריון Yallop בזמן המיטבי (שקיעה + 4/9 Lag). ARCV = גובה הירח פחות גובה השמש.</span>
+    </div>
+    <div class="table-wrapper">
+      <table id="resultTable"></table>
+    </div>
+  </div>
+
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="astro.js"></script>
+<script>
+// All astronomy lives in astro.js (shared with moment.html).
+
+// ═══════════════════════════════════════════════════════════════
+// YEAR-TYPE TOGGLE
+// ═══════════════════════════════════════════════════════════════
+let yearMode = 'heb';
+function setYearMode(mode) {
+  yearMode = mode;
+  document.getElementById('grpHeb').style.display  = mode === 'heb'  ? '' : 'none';
+  document.getElementById('grpGreg').style.display = mode === 'greg' ? '' : 'none';
+  document.getElementById('toggleHeb').classList.toggle('active',  mode === 'heb');
+  document.getElementById('toggleGreg').classList.toggle('active', mode === 'greg');
+  if (mode === 'greg') {
+    const h = parseInt(document.getElementById('hebYear').value) || 5786;
+    document.getElementById('gregYear').value = h - 3761;
+  } else {
+    const g = parseInt(document.getElementById('gregYear').value) || 2025;
+    document.getElementById('hebYear').value = g + 3761;
+  }
+}
+// Gregorian year Y → the Hebrew year that begins in the autumn of Y
+function getHebYear() {
+  if (yearMode === 'greg') return parseInt(document.getElementById('gregYear').value) + 3761;
+  return parseInt(document.getElementById('hebYear').value);
+}
+
+// ═══════════════════════════════════════════════════════════════
+// LOCATION DATABASE  (alt = metres above the western horizon)
+// ═══════════════════════════════════════════════════════════════
+const LOCATIONS = {
+  'IL-JER': {name:'ירושלים',      lat:31.78, lon:35.22,  tz:2,  zone:'Asia/Jerusalem',      alt:800},
+  'IL-TLV': {name:'תל אביב',      lat:32.07, lon:34.78,  tz:2,  zone:'Asia/Jerusalem',      alt:0},
+  'IL-HAI': {name:'חיפה',         lat:32.82, lon:34.99,  tz:2,  zone:'Asia/Jerusalem',      alt:0},
+  'IL-BEE': {name:'באר שבע',      lat:31.25, lon:34.79,  tz:2,  zone:'Asia/Jerusalem',      alt:280},
+  'US-NYC': {name:'ניו יורק',     lat:40.71, lon:-74.00, tz:-5, zone:'America/New_York',    alt:0},
+  'US-LAX': {name:'לוס אנג\'לס',  lat:34.05, lon:-118.25,tz:-8, zone:'America/Los_Angeles', alt:0},
+  'US-CHI': {name:'שיקגו',        lat:41.88, lon:-87.63, tz:-6, zone:'America/Chicago',     alt:0},
+  'US-MIA': {name:'מיאמי',        lat:25.76, lon:-80.19, tz:-5, zone:'America/New_York',    alt:0},
+  'UK-LON': {name:'לונדון',       lat:51.51, lon:-0.13,  tz:0,  zone:'Europe/London',       alt:0},
+  'CA-TOR': {name:'טורונטו',      lat:43.65, lon:-79.38, tz:-5, zone:'America/Toronto',     alt:0},
+  'AU-MEL': {name:'מלבורן',       lat:-37.81,lon:144.96, tz:10, zone:'Australia/Melbourne', alt:0},
+  'ZA-JHB': {name:'יוהנסבורג',   lat:-26.20,lon:28.04,  tz:2,  zone:'Africa/Johannesburg', alt:0},
+  'FR-PAR': {name:'פריז',         lat:48.85, lon:2.35,   tz:1,  zone:'Europe/Paris',        alt:0},
+  'AR-BUE': {name:'בואנוס איירס', lat:-34.61,lon:-58.38, tz:-3, zone:'America/Argentina/Buenos_Aires', alt:0},
+};
+
+function onLocChange() {
+  const v = document.getElementById('locPreset').value;
+  const cl = document.getElementById('customLoc');
+  cl.classList.toggle('active', v === 'CUSTOM' || v === 'GPS');
+  if (v === 'GPS') requestGPS();
+}
+
+let gpsZone = null;
+function requestGPS() {
+  if (!navigator.geolocation) {
+    setStatus('הדפדפן אינו תומך במיקום GPS', 'error');
+    document.getElementById('locPreset').value = 'CUSTOM';
+    return;
+  }
+  setStatus('🔍 מאתר מיקום...', '');
+  document.getElementById('btnCalc').disabled = true;
+  navigator.geolocation.getCurrentPosition(
+    pos => {
+      const lat = Math.round(pos.coords.latitude  * 1000) / 1000;
+      const lon = Math.round(pos.coords.longitude * 1000) / 1000;
+      try { gpsZone = Intl.DateTimeFormat().resolvedOptions().timeZone || null; } catch (e) { gpsZone = null; }
+      const tz  = Math.round(-new Date(new Date().getFullYear(), 0, 1).getTimezoneOffset() / 60); // winter offset
+      document.getElementById('customLat').value = lat;
+      document.getElementById('customLon').value = lon;
+      document.getElementById('customTz').value  = tz;
+      document.getElementById('customAlt').value = 0;
+      setStatus(`📍 מיקום נמצא: ${lat}°, ${lon}°${gpsZone ? ' · אזור זמן ' + gpsZone + ' (כולל שעון קיץ)' : ''}`, '');
+      document.getElementById('btnCalc').disabled = false;
+    },
+    err => {
+      const msg = err.code === 1 ? 'הגישה למיקום נדחתה — אנא אפשר גישה בהגדרות הדפדפן'
+                : err.code === 2 ? 'לא ניתן לאתר מיקום כרגע'
+                : 'תם הזמן לאיתור מיקום';
+      setStatus(msg, 'error');
+      document.getElementById('locPreset').value = 'CUSTOM';
+      document.getElementById('btnCalc').disabled = false;
+    },
+    {enableHighAccuracy: false, timeout: 10000, maximumAge: 60000}
+  );
+}
+
+function getLocation() {
+  const v = document.getElementById('locPreset').value;
+  if (v === 'CUSTOM' || v === 'GPS') {
+    return {
+      name: v === 'GPS' ? 'מיקום נוכחי' : 'מותאם',
+      lat: parseFloat(document.getElementById('customLat').value),
+      lon: parseFloat(document.getElementById('customLon').value),
+      tz:  parseFloat(document.getElementById('customTz').value),
+      zone: v === 'GPS' ? gpsZone : null,          // custom: fixed offset as entered
+      alt: parseFloat(document.getElementById('customAlt').value) || 0,
+    };
+  }
+  return LOCATIONS[v];
+}
+
+// ═══════════════════════════════════════════════════════════════
+// LOCAL TIME (IANA zone with DST where known, else fixed offset)
+// ═══════════════════════════════════════════════════════════════
+function utcOffset(loc, jd) {
+  if (loc.zone) { try { return tzOffsetHours(loc.zone, jdToMs(jd)); } catch (e) {} }
+  return loc.tz;
+}
+// UT JD → local wall clock, rounded to the minute (never ":60")
+function localParts(jd, loc) {
+  const off = utcOffset(loc, jd);
+  const ms = Math.round((jdToMs(jd) + off*3600000)/60000)*60000;
+  const d = new Date(ms);
+  return {y:d.getUTCFullYear(), m:d.getUTCMonth()+1, d:d.getUTCDate(),
+          h:d.getUTCHours(), mi:d.getUTCMinutes(), dow:d.getUTCDay(), off};
+}
+const p2 = n => String(n).padStart(2,'0');
+const hhmm = P => `${p2(P.h)}:${p2(P.mi)}`;
+const formatDate = (y,m,d) => `${p2(d)}/${p2(m)}/${y}`;
+const offStr = o => `UTC${o>=0?'+':'−'}${Math.abs(o)}`;
+
+function elapsedHHMM(jdConj, jdSunset) {
+  const totalMin = Math.round((jdSunset - jdConj)*1440);
+  if (totalMin < 0) return '—';
+  return `${Math.floor(totalMin/60)}:${p2(totalMin%60)}`;
+}
+
+// ═══════════════════════════════════════════════════════════════
+// MAIN CALCULATION
+// ═══════════════════════════════════════════════════════════════
+let lastData = null; // for Excel export
+
+function calculate() {
+  const hebYear = getHebYear();
+  const loc = getLocation();
+  if (!loc || isNaN(hebYear) || isNaN(loc.lat) || isNaN(loc.lon)) { setStatus('נתונים חסרים','error'); return; }
+
+  setStatus(`מחשב שנה עברית ${hebYearDigits(hebYear)} עבור ${loc.name}...`, 'info');
+  document.getElementById('btnCalc').disabled = true;
+
+  setTimeout(() => {
+    try {
+      const monthNames = isHebLeap(hebYear) ? MONTHS_LEAP : MONTHS_REG;
+      const newMoons = findNewMoons(hebYear, monthNames.length);
+
+      const data = [];
+      for (let mi=0; mi<newMoons.length; mi++) {
+        const conjJD = newMoons[mi].jd;                 // UT
+        const C = localParts(conjJD, loc);
+
+        // First evening: sunset of the conjunction's local date, or the next one
+        let baseJD = dateToJD(C.y, C.m, C.d);
+        const testSS = computeSunset(C.y, C.m, C.d, loc.lat, loc.lon, loc.alt);
+        if (testSS !== null && testSS < conjJD) baseJD += 1;
+
+        const days = [];
+        for (let delta=0; delta<2; delta++) {
+          const og = jdToGregorian(baseJD + delta);
+          const vis = visibilityAtSunset(og.year, og.month, og.day, loc.lat, loc.lon, loc.alt);
+          if (!vis) { days.push(null); continue; }
+          const S = localParts(vis.jdSS, loc);
+          const b = vis.best;
+          days.push({
+            date: formatDate(og.year, og.month, og.day),
+            dayName: DAYS_HEB[new Date(Date.UTC(og.year, og.month-1, og.day)).getUTCDay()],
+            elapsed: elapsedHHMM(conjJD, vis.jdSS),
+            sunset: hhmm(S),
+            moonset: vis.moonset != null ? hhmm(localParts(vis.moonset, loc)) : '—',
+            lag: vis.lagMin != null ? Math.round(vis.lagMin) : null,
+            sunAz: vis.sunAz.toFixed(1),
+            l1: vis.l1.toFixed(2),
+            r1: vis.r1.toFixed(2),
+            daz: vis.daz.toFixed(2),
+            arcv: vis.arcv.toFixed(2),
+            arcl: vis.arcl.toFixed(2),
+            illum: vis.illum.toFixed(2),
+            W: vis.W.toFixed(2),
+            dist: vis.moonDistKkm.toFixed(3),
+            q: b ? b.q.toFixed(3) : '—',
+            yallop: b ? b.yallop.code : '—',
+            odehV: b ? b.V.toFixed(2) : '—',
+            odeh: b ? b.odeh.code : '—',
+            assess: assess(vis),
+          });
+        }
+        data.push({
+          heb: monthNames[mi],
+          conjDate: formatDate(C.y, C.m, C.d),
+          conjDay: DAYS_HEB[C.dow],
+          conjTime: hhmm(C),
+          conjOff: C.off,
+          days,
+        });
+      }
+
+      lastData = {data, hebYear, loc};
+      renderTable(data, hebYear, loc);
+      setStatus(`✓ החישוב הושלם — ${data.length} חודשים`, 'success');
+    } catch(e) {
+      setStatus('שגיאה: ' + e.message, 'error');
+      console.error(e);
+    }
+    document.getElementById('btnCalc').disabled = false;
+  }, 50);
+}
+
+// ═══════════════════════════════════════════════════════════════
+// RENDER TABLE
+// ═══════════════════════════════════════════════════════════════
+const HEADERS = ['חודש','תאריך מחלף','יום','שעה','מהמחלף','שקיעה','שקיעת ירח','Lag (דק׳)',
+  'אז׳ שמש','L1','R1','DAZ','ARCV','ARCL','% מואר','W′ חרמש (′)',
+  'ירח-ארץ אלפי ק"מ','Yallop q','Odeh V','הערכה','תאריך יום א\'','יום','תאריך יום ב\'','יום'];
+
+function timeNote(loc) {
+  return loc.zone ? `שעון מקומי (${loc.zone}, כולל שעון קיץ)` : `שעון קבוע ${offStr(loc.tz)}`;
+}
+
+function renderTable(data, hebYear, loc) {
+  const gregY = hebYear - 3761;
+  document.getElementById('resultsTitle').textContent =
+    `ריכוז נתונים ראיית הירח — שנה עברית ${hebYearDigits(hebYear)} (${gregY}–${gregY+1})`;
+  document.getElementById('resultsSubtitle').textContent =
+    `מיקום: ${loc.name}  |  קו רוחב ${loc.lat}°  קו אורך ${loc.lon}°  |  ${timeNote(loc)}  |  גובה מעל האופק ${loc.alt} מ'`;
+  document.getElementById('resultsCard').style.display = '';
+
+  let html = `<colgroup>${HEADERS.map(()=>'<col>').join('')}</colgroup>
+  <thead>
+    <tr><th colspan="${HEADERS.length}" style="font-size:1rem;padding:10px">
+      ריכוז נתונים ראיית הירח — ${hebYearDigits(hebYear)} | ${loc.name}
+    </th></tr>
+    <tr>${HEADERS.map(h=>`<th>${h}</th>`).join('')}</tr>
+  </thead><tbody>`;
+
+  const td = (v,cls='') => `<td${cls?' class="'+cls+'"':''}>${v??'—'}</td>`;
+  const dayCells = d => `${td(d.elapsed)} ${td(d.sunset)} ${td(d.moonset)} ${td(d.lag)}
+        ${td(d.sunAz)} ${td(d.l1)} ${td(d.r1)} ${td(d.daz)} ${td(d.arcv)} ${td(d.arcl)} ${td(d.illum)}
+        ${td(d.W)} ${td(d.dist)} ${td(d.q + ' ' + d.yallop)} ${td(d.odehV + ' ' + d.odeh)}
+        ${td(d.assess.text, d.assess.cls)}`;
+
+  for (const m of data) {
+    const d1 = m.days[0], d2 = m.days[1];
+    html += `<tr class="row-month">
+      ${td(m.heb)} ${td(m.conjDate)} ${td(m.conjDay)} ${td(m.conjTime)}
+      ${Array(HEADERS.length-4).fill('<td></td>').join('')}
+    </tr>`;
+    if (d1) html += `<tr class="row-day1"><td></td><td></td><td></td><td></td>
+        ${dayCells(d1)} ${td(d1.date)} ${td(d1.dayName)} <td></td><td></td></tr>`;
+    if (d2) html += `<tr class="row-day2"><td></td><td></td><td></td><td></td>
+        ${dayCells(d2)} <td></td><td></td> ${td(d2.date)} ${td(d2.dayName)}</tr>`;
+    html += `<tr class="sep-row"><td colspan="${HEADERS.length}"></td></tr>`;
+  }
+  html += '</tbody>';
+  document.getElementById('resultTable').innerHTML = html;
+}
+
+// ═══════════════════════════════════════════════════════════════
+// STATUS
+// ═══════════════════════════════════════════════════════════════
+function setStatus(msg, type) {
+  const el = document.getElementById('status');
+  el.innerHTML = `<div class="status ${type}">${msg}</div>`;
+}
+
+// ═══════════════════════════════════════════════════════════════
+// EXCEL EXPORT
+// ═══════════════════════════════════════════════════════════════
+function downloadExcel() {
+  if (!lastData) return;
+  if (typeof XLSX === 'undefined') { setStatus('ייצוא Excel דורש חיבור לאינטרנט (טעינת ספריית xlsx)', 'error'); return; }
+  const {data, hebYear, loc} = lastData;
+  const wb = XLSX.utils.book_new();
+  const num = v => (v === '—' || v == null) ? '' : parseFloat(v);
+  const rows = [];
+  rows.push([`ריכוז נתונים ראיית הירח — ${hebYearDigits(hebYear)} | ${loc.name} | ${timeNote(loc)}`]);
+  rows.push(HEADERS);
+  for (const m of data) {
+    rows.push([m.heb, m.conjDate, m.conjDay, m.conjTime]);
+    for (let di=0; di<m.days.length; di++) {
+      const d = m.days[di];
+      if (!d) { rows.push(['','','','','—']); continue; }
+      rows.push(['','','','',
+        d.elapsed, d.sunset, d.moonset, d.lag ?? '',
+        num(d.sunAz), num(d.l1), num(d.r1), num(d.daz), num(d.arcv), num(d.arcl), num(d.illum),
+        num(d.W), num(d.dist), num(d.q), num(d.odehV), d.assess.text,
+        di===0?d.date:'', di===0?d.dayName:'',
+        di===1?d.date:'', di===1?d.dayName:'',
+      ]);
+    }
+    rows.push([]);
+  }
+  const ws = XLSX.utils.aoa_to_sheet(rows);
+  ws['!dir'] = 'rtl';
+  XLSX.utils.book_append_sheet(wb, ws, `ה${hebYearDigits(hebYear)}`.replace(/["']/g,''));
+  XLSX.writeFile(wb, `ראיית_הירח_${hebYear}.xlsx`);
+}
+
+window.onload = () => calculate();
+</script>
+</body>
+</html>
